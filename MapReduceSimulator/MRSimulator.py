@@ -14,8 +14,8 @@
 # use the MyMRSimulator system by simply defining
 # a map and a reduce method. 
 #
-# Student Name:
-# Student ID: 
+# Student Name: Harikrishna Reddy Lakkireddy
+# Student ID: ########
 ##########################################################################
 
 import sys
@@ -90,12 +90,19 @@ class MyMRSimulator:
         #SEGMENT 1. Sort such that all values for a given key are in a 
         #           list for that key 
         #[TODO]#
-        
+        val = {}
+        for key, value in kvs:
+            val.setdefault(key, []).append(value)
+
         #SEGMENT 2. call self.reduce(k, vs) for each key, providing 
         #           its list of values and append the results (if they exist) 
         #           to the list variable "namenode_fromR" 
         #[TODO]#
-        
+        for key in val:
+            res = self.reduce(key, val[key])
+            if res:
+                namenode_fromR.append(res)
+
         pass
 
     def runSystem(self): 
@@ -116,11 +123,14 @@ class MyMRSimulator:
         #for each map task, passing the chunk of data to it. 
         #the following starts a process
         #      p = Process(target=self.mapTask, args=(chunk,namenode_m2r))
-        #      p.start()  
+        #      p.start()
         processes = []
         chunkSize = int(np.ceil(len(self.data) / int(self.num_map_tasks)))
         #[TODO: DONE]#
- 
+        to_map_tasks = [self.data[i:i + self.num_map_tasks] for i in range(0, len(self.data), self.num_map_tasks)]
+        for kvs in to_map_tasks:
+            processes.append(Process(target=self.mapTask, args=(kvs, namenode_m2r)))
+            processes[-1].start()
 
         #[SEGMENT 3]
         #join map task processes back
@@ -133,10 +143,13 @@ class MyMRSimulator:
         ##[SEGMENT 4]
         #"send" each key-value pair to its assigned reducer by placing each 
         #into a list of lists, where to_reduce_task[task_num] = [list of kv pairs]
-        to_reduce_task = [[] for i in range(self.num_reduce_tasks)] 
+        to_reduce_task = [[] for i in range(self.num_reduce_tasks)]
         #[TODO]#
-
-        
+        val = {}
+        for key, value in namenode_m2r:
+            val.setdefault(key, []).append(value)
+        for key in val:
+            to_reduce_task.append(val[key])
 
         #[SEGMENT 5]
         #launch the reduce tasks as a new process for each. 
@@ -191,6 +204,7 @@ class MatrixMultMR(MyMRSimulator): #[DONE:Example]
             j, a = i, j#for n we are ordering differently
             for i in range(int(mdims[0])):
                 pairs.append(((newname, i, a), ('n', j, v)))
+        print('pairs: ', pairs)
         return pairs
         
     
@@ -215,11 +229,25 @@ class CountBy10PowersMR(MyMRSimulator):
 
     def map(self, k, v): 
         #[TODO]#
+
+        if k < 10:
+            return [(1, v)]
+        elif k >= 10 and k < 100:
+            return [(10, v)]
+        elif k >= 100 and k < 1000:
+            return [(100, v)]
+        elif k >= 1000 and k < 10000:
+            return [(1000, v)]
+        elif k >= 10000 and k < 100000:
+            return [(10000, v)]
+        elif k >= 100000:
+            return [(100000, v)]
+
         return []
     
     def reduce(self, k, vs): 
         #[TODO]#
-        return []
+        return (k, np.sum(vs))
 			
 ##########################################################################
 
@@ -261,7 +289,7 @@ if __name__ == "__main__": #[Uncomment peices to test]
     #format: 'A|B:A.size:B.size
     test1 = [(('A:1,2:2,1', 0, 0), 2.0), (('A:1,2:2,1', 0, 1), 1.0), (('B:1,2:2,1', 0, 0), 1), (('B:1,2:2,1', 1, 0), 3)   ]
     test2 = createSparseMatrix([[1, 2, 4], [4, 8, 16]], 'A:2,3:3,3') + createSparseMatrix([[1, 1, 1], [2, 2, 2], [4, 4, 4]], 'B:2,3:3,3')
-    
+
     test3 = createSparseMatrix(np.random.randint(-10, 10, (5,20)), 'A:5,20:20,4') + \
 	    createSparseMatrix(np.random.randint(-10, 10, (20,4)), 'B:5,20:20,4')
 
@@ -278,7 +306,6 @@ if __name__ == "__main__": #[Uncomment peices to test]
     data = []
     with open(filename, 'r') as infile:
         data = [(int(i.strip()), 1) for i in infile.readlines()]
-        
     print("\nExample of input data: ", data[:10])
     mrObject = CountBy10PowersMR(data, 4, 3)
     mrObject.runSystem()
